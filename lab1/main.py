@@ -73,6 +73,7 @@ class Model():
         self.w3=np.random.normal(0,1,(self.layer2,2))
     
     def forward(self,x):
+        self.x = x
         self.a1=x@self.w1
         self.z1=sigmoid(self.a1)
         self.a2=self.z1@self.w2
@@ -82,7 +83,22 @@ class Model():
         return out
 
     def backward(self,X,y):
-        grad_y_pred = delta_cross_entropy(X,y)
+        grad_out = delta_cross_entropy(X,y)
+        grad_a3 = np.multiply(grad_out, derivative_sigmoid(X))
+        grad_w3 = self.z2.T@grad_a3
+        grad_z2 = grad_a3@self.w3.T
+        grad_a2 = np.multiply(grad_z2, derivative_sigmoid(self.z2))
+        grad_w2 = self.z1.T @ grad_a2 
+        grad_z1 = grad_a2 @ self.w2.T
+        grad_a1 = np.multiply(grad_z1, derivative_sigmoid(self.z1))
+        grad_w1 = self.x.T @ grad_a1
+
+        self.grad_w3 = grad_w3
+        self.grad_w2 = grad_w2
+        self.grad_w1 = grad_w1
+
+    def step(self):
+
 
 
 
@@ -91,6 +107,10 @@ class Model():
     
     def sigmoid(x):
         return 1.0/(1.0+np.exp(-x))
+
+
+    def derivative_sigmoid(x):
+        return np.multiply(x,1.0-x)
 
 
 if __name__=="__main__":
