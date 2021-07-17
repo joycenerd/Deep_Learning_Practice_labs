@@ -1,6 +1,11 @@
-import pandas as pd
 import numpy as np
-import os
+import argparse
+import os 
+
+
+parser=argparse.ArgumentParser()
+parser.add_argument("--task", type=str, default="linear", help="which kind of data to process: [linear, xor]")
+args=parser.parse_args()
 
 
 def generate_linear(n=100):
@@ -30,98 +35,217 @@ def generate_XOR_easy():
     return np.array(inputs),np.array(labels).reshape(21,1)
 
 
-def softwax(X):
-    exps = np.exp(X)
-    return exps / np.sum(exps)
-
-
-def cross_entropy(X,y):
+def sigmoid(x):
+    """ Sigmoid function.
+    This function accepts any shape of np.ndarray object as input and perform sigmoid operation.
     """
-    X is the output from fully connected layer (num_examples,num_classes)
-    y is labels (num_examples,1)
+    return 1 / (1 + np.exp(-x))
+
+
+def der_sigmoid(y):
+    """ First derivative of Sigmoid function.
+    The input to this function should be the value that output from sigmoid function.
     """
-    m=y.shape[0]
-    p=softwax(X)
+    return y * (1 - y)
 
-    # use multidimensional array indexing to extract softmax probability of the correct label for each sample
-    log_likelihood=-np.log(p[range(m),y])
-    loss=np.sum(log_likelihood)/m
-    return loss
+class Model:
+    def __init__(self, hidden_size, epochs, lr):
+        """ Feedforward network with 2 hidden layers
+        Args:
+            hidden_size: two hidden layers neurons (layer1,layer2)
+            epochs: num of training epochs
+        """
+        self.epochs = epochs
 
+        # Model parameters initialization
+        input_size = 2
+        output_size = 1
+        self.lr = lr
+        self.momentum = 0.9
+        (layer1,layer2)=hidden_size
+        layer1=10
+        layer2=10
 
-def delta_cross_entropy(X,y):
-    """
-    X is the output from fully connected layer (num_examples,num_classes)
-    y is labels (num_examples,1)
-    """
-    m = y.shape[0]
-    grad = softwax(X)
-    grad[range(m), y] -= 1
-    grad = grad / m
-    return grad
-
-
-class Model():
-    def __init__(self,input_size,layer1,layer2,lr):
-        self.input_size=input_size
-        self.layer1=layer1
-        self.layer2=layer2
-        self.lr=lr
-    
-        self.w1=np.random.normal(0,1,(self.input_size,self.layer1))
-        self.w2=np.random.normal(0,1,(self.layer1,self.layer2))
-        self.w3=np.random.normal(0,1,(self.layer2,2))
-    
-    def forward(self,x):
-        self.x = x
-        self.a1=x@self.w1
-        self.z1=sigmoid(self.a1)
-        self.a2=self.z1@self.w2
-        self.z2=sigmoid(self.a2)
-        self.a3=self.z2@self.w3
-        out = sigmoid(self.a3)
-        return out
-
-    def backward(self,X,y):
-        grad_out = delta_cross_entropy(X,y)
-        grad_a3 = np.multiply(grad_out, derivative_sigmoid(X))
-        grad_w3 = self.z2.T@grad_a3
-        grad_z2 = grad_a3@self.w3.T
-        grad_a2 = np.multiply(grad_z2, derivative_sigmoid(self.z2))
-        grad_w2 = self.z1.T @ grad_a2 
-        grad_z1 = grad_a2 @ self.w2.T
-        grad_a1 = np.multiply(grad_z1, derivative_sigmoid(self.z1))
-        grad_w1 = self.x.T @ grad_a1
-
-        self.grad_w3 = grad_w3
-        self.grad_w2 = grad_w2
-        self.grad_w1 = grad_w1
-
-    def step(self):
-
-
-
-
-
+        self.w1 = np.random.randn(input_size, layer1)
+        self.w2 = np.random.randn(layer1, layer2)
+        self.w3 = np.random.randn(layer2, output_size)
+        self.b1 = np.zeros((1, layer1))
+        self.b2 = np.zeros((1, layer2))
+        self.b3 = np.zeros((1, output_size))
         
-    
-    def sigmoid(x):
-        return 1.0/(1.0+np.exp(-x))
+        self.v_w1 = np.zeros((input_size, layer1) )
+        self.v_w2 = np.zeros((layer1, layer2))
+        self.v_w3 = np.zeros((layer2, output_size))
+        self.v_b1 = np.zeros((1, layer1))
+        self.v_b2 = np.zeros((1, layer2))
+        self.v_b3 = np.zeros((1, output_size))
+
+    @staticmethod
+    def plot_result(data, gt_y, pred_y):
+        """ Data visualization with ground truth and predicted data comparison. There are two plots
+        for them and each of them use different colors to differentiate the data with different labels.
+        Args:
+            data:   the input data
+            gt_y:   ground truth to the data
+            pred_y: predicted results to the data
+        """
+        assert data.shape[0] == gt_y.shape[0]
+        assert data.shape[0] == pred_y.shape[0]
+
+        plt.figure()
+
+        plt.subplot(1, 2, 1)
+        plt.title('Ground Truth', fontsize=18)
+
+        for idx in range(data.shape[0]):
+            if gt_y[idx] == 0:
+                plt.plot(data[idx][0], data[idx][1], 'ro')
+            else:
+                plt.plot(data[idx][0], data[idx][1], 'bo')
+
+        plt.subplot(1, 2, 2)
+        plt.title('Prediction', fontsize=18)
+
+        for idx in range(data.shape[0]):
+            if pred_y[idx] == 0:
+                plt.plot(data[idx][0], data[idx][1], 'ro')
+            else:
+                plt.plot(data[idx][0], data[idx][1], 'bo')
+
+        plt.show()
+
+    def forward(self, inputs):
+        # Forward pass
+        self.input = inputs
+        self.a1    = sigmoid(np.dot(self.input, self.w1)+self.b1)
+        self.a2    = sigmoid(np.dot(self.a1, self.w2)+self.b2)
+        output     = sigmoid(np.dot(self.a2, self.w3)+self.b3)
+
+        return output
+
+    def backward(self):
+        # backward pass
+        dout    = self.error
+        dout    = np.multiply(dout, der_sigmoid(self.output))
+        grad_w3 = np.dot(self.a2.T, dout)
+        grad_b3 = np.sum(dout, axis=0)
+
+        dout    = np.dot(dout, self.w3.T)
+        dout    = np.multiply(dout, der_sigmoid(self.a2))
+        grad_w2 = np.dot(self.a1.T, dout)
+        grad_b2 = np.sum(dout, axis=0)
+
+        dout    = np.dot(dout, self.w2.T)
+        dout    = np.multiply(dout, der_sigmoid(self.a1))
+        grad_w1 = np.dot(self.input.T, dout)
+        grad_b1 = np.sum(dout, axis=0)
+        
+        
+        self.v_w1 = self.momentum * self.v_w1 + self.lr * grad_w1 
+        self.v_w2 = self.momentum * self.v_w2 + self.lr * grad_w2
+        self.v_w3 = self.momentum * self.v_w3 + self.lr * grad_w3
+                                                           
+        self.v_b1 = self.momentum * self.v_b1 + self.lr * grad_b1
+        self.v_b2 = self.momentum * self.v_b2 + self.lr * grad_b2
+        self.v_b3 = self.momentum * self.v_b3 + self.lr * grad_b3
+
+        self.w1 -= self.v_w1
+        self.w2 -= self.v_w2
+        self.w3 -= self.v_w3
+                            
+        self.b1 -= self.v_b1
+        self.b2 -= self.v_b2
+        self.b3 -= self.v_b3
+
+        return
+
+    def train(self, inputs, labels):
+        """ model training
+        Args:
+            inputs: the training (and testing) data used in the model.
+            labels: the ground truth of correspond to input data.
+        """
+        # make sure that the amount of data and label is match
+        assert inputs.shape[0] == labels.shape[0]
+
+        n = inputs.shape[0]
+        self.pre_error = 1000
+        error = 0
+
+        for epochs in range(self.epochs):
+
+            for idx in range(n):
+                self.output = self.forward(inputs[idx:idx+1, :])
+                self.error = self.output - labels[idx:idx+1, :]
+                self.backward()
+
+            train_loss,train_acc=self.test(inputs,labels)
+            train_loss=train_loss.squeeze().squeeze()
+            print(f"Epoch {epochs+1}/{self.epochs} train_loss: {train_loss:.4f} train_acc: {train_acc:.4f}")
+                   
+            if train_loss > self.pre_error:
+                self.lr *= 0.9
+                pass
+            self.pre_error = error
+
+        print('Training finished')
+        test_loss,test_acc=self.test(inputs, labels,True)
+        test_loss=test_loss.squeeze().squeeze()
+        print(f"test_loss: {test_loss:.4f}\ttest_acc: {test_acc:.4f}")
 
 
-    def derivative_sigmoid(x):
-        return np.multiply(x,1.0-x)
+    def test(self, inputs, labels,print_res=False):
+        """ testing
+        Args:
+            inputs: the testing data. One or several data samples are both okay.
+                The shape is expected to be [BatchSize, 2].
+            labels: the ground truth correspond to the inputs.
+        """
+        n = inputs.shape[0]
+        error = 0
+        acc = 0
+        all_result=[]
+
+        for idx in range(n):
+            result = self.forward(inputs[idx:idx+1, :])
+            all_result.append(result)
+            error += abs(result - labels[idx:idx+1, :])
+            acc += (result[0][0] >= 0.5) == labels[idx:idx+1, :][0][0]
+
+        error /= n
+        acc /= n
+        if print_res:
+            for res in all_result:
+                print(res)
+
+        return error, acc
 
 
 if __name__=="__main__":
+    task=args.task
+
     # generate data
-    if not os.path.exists("./data/linear_data.csv"):
-        data,label=generate_linear(n=100)
-        data=np.append(data,label,axis=1)
-        np.savetxt("./data/linear_data.csv",data,delimiter=",")
-    if not os.path.exists("./data/xor_data.csv"):
-        data,label=generate_XOR_easy()
-        data=np.append(data,label,axis=1)
-        np.savetxt("./data/xor_data.csv",data,delimiter=",")
+    if task=="linear":
+        if not os.path.exists("./data/linear_data.csv"):
+            data,label=generate_linear(n=100)
+            data=np.append(data,label,axis=1)
+            np.savetxt("./data/linear_data.csv",data,delimiter=",")
+        else:
+            all_data = np.genfromtxt("./data/linear_data.csv", delimiter=",")
+            data,label = all_data[:,:2], all_data[:,2]
+            label=label.astype(int).reshape(-1,1)
+    if task == "xor":
+        if not os.path.exists("./data/xor_data.csv"):
+            data,label=generate_XOR_easy()
+            data=np.append(data,label,axis=1)
+            np.savetxt("./data/xor_data.csv",data,delimiter=",")
+        else:
+            all_data = np.genfromtxt("./data/xor_data.csv", delimiter=",")
+            data,label = all_data[:,:2], all_data[:,2]
+            label=label.astype(int).reshape(-1,1)
+
+    model=Model((5,10),1000,0.1)
+    model.train(data,label)
+
 
 
