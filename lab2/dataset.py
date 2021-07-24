@@ -1,4 +1,5 @@
 from torch.utils.data import Dataset,DataLoader
+import numpy as np
 import torch
 
 
@@ -18,6 +19,8 @@ class EEGDataset(Dataset):
 
     
     def __getitem__(self,index):
-        return torch.from_numpy(self.X[index]),torch.from_numpy(self.y[index]) 
+        input=np.asarray(self.X[index])
+        target=np.asarray(self.y[index])
+        return torch.from_numpy(input),torch.from_numpy(target) 
 
     
