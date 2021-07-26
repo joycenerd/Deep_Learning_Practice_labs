@@ -11,6 +11,8 @@ In this lab, we will need to understand and implement simple neural networks wit
 
 Install dependencies: `conda env create -f environment.yml`
 
+Activate environment: `conda activate backprop`
+
 ## Datasets
 
 1. Linear data: `./data/linear_data.csv`

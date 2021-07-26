@@ -5,11 +5,12 @@ import pickle
 import os
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--task", type=str, default="xor", help="which kind of data to process: [linear, xor]")
-parser.add_argument("--lr", type=float, default=0.1, help="learning rate")
+parser.add_argument("--task", type=str, default="linear", help="which kind of data to process: [linear, xor]")
+parser.add_argument("--lr", type=float, default=0.01, help="learning rate")
 parser.add_argument("--hidden-size", type=tuple, default=(512, 32),
                     help="two hidden layer neuron numbers (layer1,layer2)")
-parser.add_argument("--load", type=bool, default=False, help="if testing weight is loading from file")
+parser.add_argument("--load", type=bool, default=True, help="if testing weight is loading from file")
+parser.add_argument("--model-path",type=str,default="./checkpoints/linear_0.01_(512,32).pkl",help="pretrained model path")
 args = parser.parse_args()
 
 
@@ -287,6 +288,7 @@ if __name__ == "__main__":
     lr = args.lr
     hidden_size = args.hidden_size
     load = args.load
+    model_path=args.model_path
 
     if not os.path.isdir("./data"):
         os.mkdir("./data")
@@ -317,11 +319,14 @@ if __name__ == "__main__":
 
     # training and testing
     model = Model(hidden_size, 1000, lr)
-    model.train(data, label)
+    # model.train(data, label)
+
+    # ./checkpoints/linear_0.01_512,32.pkl
+    # ./checkpoints/xor_0.1_512,32.pkl
 
     if load == True:
-        model.load_model("./checkpoints/linear_0.1_(5,10).pkl")
-        test_loss, test_acc = model.test(data, label)
+        model.load_model(model_path)
+        test_loss, test_acc = model.test(data, label,print_res=True)
         test_loss = test_loss.squeeze().squeeze()
         print(f"test_loss: {test_loss:.4f}\ttest_acc: {test_acc:.4f}")
     pred = get_pred(model, data)
