@@ -8,6 +8,12 @@ import torch
 
 
 def demo(checkpoints,X_test,y_test):
+    """
+    In the convenience of demonstrating the best results
+    :param checkpoints: checkpoint path dict
+    :param X_test: testing data (signal)
+    :param y_test: testing label
+    """
     device="cuda"
 
     # prepare data
@@ -45,6 +51,11 @@ def demo(checkpoints,X_test,y_test):
         
 
 def load_model(model_path):
+    """
+    load the model from checkpoint
+    :param model_path: checkpoint path
+    :return model for testing
+    """
     checkpoint=torch.load(model_path)
     model_name=checkpoint['model_name']
     act=checkpoint['act']

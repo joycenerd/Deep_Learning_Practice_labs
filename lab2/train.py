@@ -24,11 +24,18 @@ parser.add_argument("--model",type=str,default="DeepConvNet",help="which model: 
 parser.add_argument("--model_path",type=str,default="./checkpoints/EEGNet_leaky_relu_1e-2_init_amsgrad_0.8787.pt",help="checkpoint path to load for testings")
 args=parser.parse_args()
 
-save_name="DeepConvNet_elu_1e-3_amsgrad_reg1e-4"
+save_name="DeepConvNet_elu_1e-3_amsgrad"
 writer=SummaryWriter(f"runs/DeepConvNet/{save_name}")
 
 
 def train(X_train,y_train,X_test,y_test):
+    """
+    for training the model
+    :param X_train: training data (signal)
+    :param y_train: training label
+    :param X_test: testing data (signal)
+    :param y_test: testing label    
+    """
     epochs=args.epochs
     act=args.act
     device=args.device
@@ -122,6 +129,14 @@ def train(X_train,y_train,X_test,y_test):
 
 
 def eval(net,test_loader,test_size,loss_func):
+    """
+    model evaluation
+    :param net: model
+    :param test_loader: testing data loader
+    :param test_size: size of the testing data
+    :param loss_func: loss function we are using
+    :return evaluation loss and accuracy
+    """
     device=args.device
 
     net.eval()
@@ -146,6 +161,11 @@ def eval(net,test_loader,test_size,loss_func):
 
 
 def test(X_test,y_test):
+    """
+    testing the model
+    :param X_test: testing data (signal)
+    :param y_test: testing label
+    """
     model_path=args.model_path
     device=args.device
 
@@ -179,6 +199,11 @@ def test(X_test,y_test):
 
     
 def load_model(model_path):
+    """
+    load the model from checkpoint
+    :param model_path: checkpoint path
+    :return model for testing
+    """
     checkpoint=torch.load(model_path)
     model_name=checkpoint['model_name']
     act=checkpoint['act']
@@ -196,6 +221,8 @@ if __name__=="__main__":
     
     # read data
     X_train,y_train,X_test,y_test=read_bci_data()
+
+    # train
     train(X_train,y_train,X_test,y_test)
     
     # test(X_test,y_test)

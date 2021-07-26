@@ -36,7 +36,6 @@ if __name__=="__main__":
 
 
     # plot DeepConvNet
-    # plot EEG
     DeepConvNet_dict={
         'elu':'elu_1e-3_amsgrad',
         'relu':'relu_1e-2',

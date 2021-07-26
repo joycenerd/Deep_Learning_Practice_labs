@@ -1,6 +1,10 @@
 import numpy as np
 
 def read_bci_data():
+    """
+    Read the BCI data
+    :return train and test data
+    """
     S4b_train = np.load('./Data/S4b_train.npz')
     X11b_train = np.load('./Data/X11b_train.npz')
     S4b_test = np.load('./Data/S4b_test.npz')
