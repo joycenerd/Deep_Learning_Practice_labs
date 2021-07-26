@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def read_bci_data():
     """
     Read the BCI data
@@ -16,7 +17,7 @@ def read_bci_data():
     test_label = np.concatenate((S4b_test['label'], X11b_test['label']), axis=0)
 
     train_label = train_label - 1
-    test_label = test_label -1
+    test_label = test_label - 1
     train_data = np.transpose(np.expand_dims(train_data, axis=1), (0, 1, 3, 2))
     test_data = np.transpose(np.expand_dims(test_data, axis=1), (0, 1, 3, 2))
 
