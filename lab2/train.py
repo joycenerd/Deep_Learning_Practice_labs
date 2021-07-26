@@ -52,7 +52,7 @@ def train(X_train,y_train,X_test,y_test):
         net=EEGNet(activation)
     elif _model=="DeepConvNet":
         net=DeepConvNet(activation)
-    # net.apply(initialize_weights)
+    net.apply(initialize_weights)
     net.to(device)
 
     # initialize loss function

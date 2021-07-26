@@ -79,6 +79,10 @@ class DeepConvNet(nn.Module):
 
 
 def initialize_weights(m):
+    """
+    Initialize the model
+    :param m: model
+    """
     if isinstance(m,nn.Conv2d):
         nn.init.kaiming_uniform_(m.weight.data,nonlinearity="relu")
         if m.bias is not None:
