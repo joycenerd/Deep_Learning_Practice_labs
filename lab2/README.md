@@ -13,7 +13,7 @@ As for the network structure, the only difference between our network and the [o
 Clone the repository locally and direct
 ```
 git clone https://github.com/joycenerd/Deep_Learning_Practice_labs.git
-cd lab2
+cd Deep_Learning_Practice_labs/lab2
 ```
 
 Make a new conda env and activate it:
