@@ -1,8 +1,13 @@
+from torchvision import transforms
 from torch.utils import data
+from PIL import Image
 import pandas as pd
 import numpy as np
+import torch
 
 from pathlib import Path
+
+from torchvision.transforms.transforms import RandomVerticalFlip
 
 
 def getData(mode,csv_dir):
@@ -55,5 +60,27 @@ class RetinopathyLoader(data.Dataset):
                          
             step4. Return processed image and label
         """
+        # read in the actual image
+        image_path=Path(self.root).joinpath(self.img_name[index]+".jpeg")
+        img=Image.open(image_path).convert('RGB')
+
+        if self.mode=="train":
+            data_transform=transforms.Compose([
+                transforms.RandomResizedCrop(224),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomRotation((90,90)),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485,0.456,0.406],std=[0.229,0.224,0.225])
+            ])
+        else:
+            data_transform=transforms.Compose([
+                transforms.Resize((224,224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485,0.456,0.406],std=[0.229,0.224,0.225])
+            ])
+        
+        img=data_transform(img)
+        label=torch.from_numpy(np.asarray(self.label[index]))
 
         return img, label
