@@ -1,9 +1,7 @@
+import torchvision.models as models
 import torch.nn as nn
 
 from functools import partial
-
-from torch.nn.modules.batchnorm import BatchNorm2d
-from torch.nn.modules.pooling import MaxPool2d
 
 
 class Conv2dAuto(nn.Conv2d):
@@ -67,7 +65,7 @@ class ResidualBlock(nn.Module):
 
     @property
     def should_apply_shortcut(self):
-        return self.in_channels!=self.out_channels
+        return self.in_channels!=self.expanded_channels
        
     @property
     def expanded_channels(self):
@@ -202,6 +200,11 @@ class Decoder(nn.Module):
     connected layer to map the output to correct the class
     """
     def __init__(self,in_features,n_classes):
+        """
+        Args:
+            in_features: (int) parameters in encoder
+            n_classes: (int) total class num
+        """
         super().__init__()
         self.avg_pool=nn.AdaptiveAvgPool2d((1,1))
         self.decoder=nn.Linear(in_features,n_classes)
@@ -211,5 +214,102 @@ class Decoder(nn.Module):
         x=x.view(x.shape[0],-1)
         x=self.decoder(x)
         return x
-        
+
+
+class ResNet(nn.Module):
+    """
+    ResNet model class
+    """
+    def __init__(self,in_channels,n_classes,*args,**kwargs):
+        """
+        Args:
+            in_channels: (int) input channel num
+            n_classes: (int) total class
+        """
+        super().__init__()
+        self.encoder=Encoder(in_channels,*args,**kwargs)
+        self.decoder=Decoder(self.encoder.blocks[-1].blocks[-1].expanded_channels,n_classes)
+
+    def forward(self,x):
+        x=self.encoder(x)
+        x=self.decoder(x)
+        return x
+
+
+def resnet18(in_channels,n_classes,block=BasicBlock,*args,**kwargs):
+    """
+    ResNet18 model
+    
+    Args:
+        in_channels: (int) input channel num
+        n_classes: (int) total class
+        block: (nn.Module) BasicBlock or BottleNeckBlock
+    
+    Returns:
+        ReNet model with resnet18 specific layers
+    """
+    return ResNet(in_channels,n_classes,block=block,deepths=[2,2,2,2],*args,**kwargs)
+
+
+def resnet50(in_channels,n_classes,block=BottleNeckBlock,*args,**kwargs):
+    """
+    ResNet50 model
+    
+    Args:
+        in_channels: (int) input channel num
+        n_classes: (int) total class
+        block: (nn.Module) BasicBlock or BottleNeckBlock
+    
+    Returns:
+        ReNet model with resnet18 specific layers
+    """
+    return ResNet(in_channels,n_classes,block=block,deepths=[3,4,6,3],*args,**kwargs)
+
+
+def pretrained_resnet(_model):
+    """
+    Get the pretrained ResNet and modified the last fc layer to [num_feat,5] (5 is the output 
+    class num)
+    
+    Args:
+        _model: (str) which model [resnet18,resnet50]
+    
+    Return:
+        return pretrained model + modification of last fc layer with initialization
+
+    """
+    if _model=="resnet18":
+        model=models.resnet18(pretrained=True)
+    elif _model=="resnet50":
+        model=models.resnet50(pretrained=True)
+
+    num_feat=model.fc.in_features
+    model.fc=nn.Linear(num_feat,5)
+    nn.init.xavier_uniform_(model.fc.weight)
+    model.fc.bias.data.fill_(0.001)
+
+    return model
+
+
+def initialize_weights(m):
+    """
+    Initialize the model
+    
+    Args:
+        m: (nn.Module) model
+    """
+    if isinstance(m, nn.Conv2d):
+        nn.init.xavier_uniform_(m.weight.data, gain=nn.init.calculate_gain('relu'))
+        if m.bias is not None:
+            nn.init.constant_(m.bias.data, 0)
+    elif isinstance(m, nn.BatchNorm2d):
+        nn.init.constant_(m.weight.data, 1)
+        nn.init.constant_(m.bias.data, 0)
+    elif isinstance(m, nn.Linear):
+        nn.init.xavier_uniform_(m.weight.data)
+        if m.bias is not None:
+            nn.init.constant_(m.bias.data, 0)
+
+
+
 
