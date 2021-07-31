@@ -7,7 +7,7 @@ import torch
 
 from pathlib import Path
 
-from torchvision.transforms.transforms import RandomVerticalFlip
+from torchvision.transforms.transforms import RandomOrder, RandomVerticalFlip
 
 
 def getData(mode,csv_dir):
@@ -65,11 +65,15 @@ class RetinopathyLoader(data.Dataset):
         img=Image.open(image_path).convert('RGB')
 
         if self.mode=="train":
-            data_transform=transforms.Compose([
-                transforms.RandomResizedCrop(224),
+            transform=[
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.RandomRotation((90,90)),
                 transforms.RandomVerticalFlip(p=0.5),
+                transforms.ColorJitter(brightness=0.1,contrast=0.1,saturation=0.1,hue=0.1)
+            ]
+            data_transform=transforms.Compose([
+                transforms.RandomOrder(transform),
+                transforms.Resize((224,224)),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485,0.456,0.406],std=[0.229,0.224,0.225])
             ])
