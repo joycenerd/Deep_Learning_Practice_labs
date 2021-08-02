@@ -1,30 +1,31 @@
-from resnet import resnet18,resnet50,pretrained_resnet,initialize_weights
+from resnet import resnet18,resnet50,pretrained_resnet,initialize_weights,funct
 from dataloader import RetinopathyLoader
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
-import torchvision.models as models
 from torchsummary import summary
 from tqdm import tqdm
 import torch.nn as nn
 import torch
 
-from pathlib import Path
 import argparse
+import logging
 import copy
 import os
 
 
 parser=argparse.ArgumentParser()
-parser.add_argument("--model",type=str,default="resnet50",help="which model: [resnet18, resnet50]")
-parser.add_argument("--pretrain",type=bool,default=True,help="whether to use pretrained weights")
+parser.add_argument("--model",type=str,default="resnet18",help="which model: [resnet18, resnet50]")
+parser.add_argument("--pretrain",type=bool,default=False,help="whether to use pretrained weights")
 parser.add_argument("--act",type=str,default='relu',help="which activation function to use: [relu, leaky_relu,selu]")
-parser.add_argument("--device",type=str,default="cuda:0",help="use which device for training")
+parser.add_argument("--device",type=str,default="cuda:1",help="use which device for training")
 parser.add_argument("--batch-size",type=int,default=32,help="batch size for training")
 parser.add_argument("--lr",type=float,default=1e-3,help="learning rata")
-parser.add_argument("--epochs",type=int,default=15,help="num of epochs for training")
-parser.add_argument("--model-path",type=str,default="./checkpoints/resnet18/relu_0.001_0.7335.pt")
+parser.add_argument("--epochs",type=int,default=10,help="num of epochs for training")
+parser.add_argument("--model-path",type=str,default="./checkpoints/resnet50/relu_0.001_0.7335.pt")
+parser.add_argument("--load",type=bool,default=True,help="if load the weight param from checkpoint before training")
+parser.add_argument("--img-size",type=int,default=256,help="Size to resize the image")
 args=parser.parse_args()
 
 
@@ -36,24 +37,32 @@ def train():
     batch_size=args.batch_size
     lr=args.lr
     epochs=args.epochs
+    load=args.load
+    model_path=args.model_path
+    img_size=args.img_size
 
     if pretrain:
-        save_name=f"pretrained_{act}_{lr}"
+        save_name=f"{act}_{lr}"
     else:
         save_name=f"{act}_{lr}"
     writer=SummaryWriter(f"runs/{_model}/{save_name}")
+    logging.basicConfig(format='%(asctime)s - %(message)s', 
+                        level=logging.INFO,
+                        handlers=[logging.FileHandler(f'./record/{save_name}.log','w','utf-8')])
 
     # data preprocessing
-    train_set=RetinopathyLoader("./Data/data","train")
+    train_set=RetinopathyLoader("./Data/data","train",img_size)
     train_loader=DataLoader(train_set,batch_size=batch_size,shuffle=True,num_workers=4)
-    test_set=RetinopathyLoader("./Data/data","test")
+    test_set=RetinopathyLoader("./Data/data","test",img_size)
     test_loader=DataLoader(test_set,batch_size=batch_size,shuffle=False,num_workers=4)
 
     train_size=len(train_set)
     test_size=len(test_set)
 
     # initialize model
-    if pretrain:
+    if load:
+        model=load_model(model_path)
+    elif pretrain:
         model=pretrained_resnet(_model)
     else:
         if _model=="resnet18":
@@ -79,13 +88,10 @@ def train():
     for epoch in range(1,epochs+1):
         print(f"Epoch {epoch}/{epochs}")
         print("-"*len(f"Epoch {epoch}/{epochs}"))
+        logging.info(f"Epoch {epoch}/{epochs}")
 
         train_loss=0.0
         train_acc=0.0
-
-        # use scheduler when epoch>7
-        if epoch>7:
-            scheduler.step()
 
         # training
         model.train()
@@ -108,9 +114,14 @@ def train():
         train_loss/=train_size
         train_acc/=train_size
         print(f"train_loss: {train_loss:.4f}\ttrain_acc: {train_acc:.4f}")
+        logging.info(f"train_loss: {train_loss:.4f}\ttrain_acc: {train_acc:.4f}")
         
         # evaluation
         eval_loss,eval_acc=eval(model,test_loader,test_size,loss_func)
+        logging.info(f"eval_loss: {eval_loss:.4f}\teval_acc: {eval_acc:.4f}")
+
+        if epoch>=4:
+            scheduler.step()
 
         # log the result
         # log the result
@@ -128,6 +139,7 @@ def train():
         
     # save the best model
     print(f"best_acc: {best_acc:.4f}\tbest_train_acc: {best_train_acc:.4f}")
+    logging.info(f"best_acc: {best_acc:.4f}\tbest_train_acc: {best_train_acc:.4f}")
     save_model(_model,best_model_params,pretrain,act,save_name,best_acc)
 
     writer.close()
@@ -153,7 +165,6 @@ def eval(model, test_loader, test_size, loss_func):
 
     eval_loss = 0.0
     eval_acc = 0.0
-
     for idx, (inputs, targets) in enumerate(tqdm(test_loader)):
         inputs = inputs.to(device, dtype=torch.float)
         targets = targets.to(device, dtype=torch.long)
@@ -177,9 +188,10 @@ def test():
     model_path=args.model_path
     device=args.device
     batch_size=args.batch_size
+    img_size=args.img_size
 
     # prepare data
-    test_set=RetinopathyLoader("./Data/data","test")
+    test_set=RetinopathyLoader("./Data/data","test",img_size)
     test_loader=DataLoader(test_set,batch_size=batch_size,num_workers=4)
     test_size=len(test_set)
 
@@ -193,7 +205,7 @@ def test():
     test_loss=0.0
     test_acc=0.0
 
-    for idx,(inputs,targets) in enumerate(test_loader):
+    for idx,(inputs,targets) in enumerate(tqdm(test_loader)):
         inputs = inputs.to(device, dtype=torch.float)
         targets = targets.to(device, dtype=torch.long)
 
@@ -258,10 +270,13 @@ def load_model(model_path):
 
 
 if __name__=="__main__":
+    print(args)
+    input("Press ENTER if no problem...")
+
     if not os.path.isdir("./checkpoints/resnet18"):
         os.makedirs("./checkpoints/resnet18")
     if not os.path.isdir("./checkpoints/resnet50"):
         os.makedirs("./checkpoints/resnet50")
 
-    train()
-    # test()
+    # train()
+    test()

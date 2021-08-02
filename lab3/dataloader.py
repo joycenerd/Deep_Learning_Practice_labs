@@ -22,7 +22,7 @@ def getData(mode,csv_dir):
 
 
 class RetinopathyLoader(data.Dataset):
-    def __init__(self, root, mode):
+    def __init__(self, root, mode,img_size):
         """
         Args:
             root (string): Root path of the dataset.
@@ -34,6 +34,7 @@ class RetinopathyLoader(data.Dataset):
         self.root = root
         self.img_name, self.label = getData(mode,Path(self.root).parent.absolute())
         self.mode = mode
+        self.img_size=img_size
         print("> Found %d images..." % (len(self.img_name)))
 
     def __len__(self):
@@ -73,13 +74,13 @@ class RetinopathyLoader(data.Dataset):
             ]
             data_transform=transforms.Compose([
                 transforms.RandomOrder(transform),
-                transforms.Resize((224,224)),
+                transforms.Resize((self.img_size,self.img_size)),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485,0.456,0.406],std=[0.229,0.224,0.225])
             ])
         else:
             data_transform=transforms.Compose([
-                transforms.Resize((224,224)),
+                transforms.Resize((self.img_size,self.img_size)),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485,0.456,0.406],std=[0.229,0.224,0.225])
             ])

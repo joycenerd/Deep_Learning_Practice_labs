@@ -291,6 +291,16 @@ def pretrained_resnet(_model):
     return model
 
 
+def funct(list_mods,act):
+    print("type: ", type(list_mods))
+    for i in range(len(list_mods)):
+        if list_mods[i].__class__.__name__ == "ReLU":
+            list_mods[i] = act_func(act)
+        elif list_mods[i].__class__.__name__ in ("Sequential", "BasicBlock","Bottleneck"):
+            list_mods[i] = nn.Sequential(*funct(list(list_mods[i].children()),act))
+    return list_mods
+
+
 def initialize_weights(m):
     """
     Initialize the model
