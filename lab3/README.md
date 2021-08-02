@@ -4,7 +4,7 @@ In this lab, we analyzes diabetic retinopathy using ResNet, specifically using R
 
 ## Data
 
-You can download the images [here](https://drive.google.com/open?id=1RTmrk7Qu9IBjQYLczaYKOvXaHWBS0o72). You can find the training and testing corresponding image name and label in `./Data`.
+You can download the images [here](https://drive.google.com/open?id=1RTmrk7Qu9IBjQYLczaYKOvXaHWBS0o72), and save the images in `./Data/data`. You can find the training and testing corresponding image name and label in `./Data`.
 
 ## Training
 
