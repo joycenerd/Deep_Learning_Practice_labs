@@ -53,10 +53,10 @@ class DecoderRNN(nn.Module):
         self.lstm = nn.LSTM(hidden_size,hidden_size)
         self.fc = nn.Linear(hidden_size, output_size)
 
-    def forward(self, z,c,hidden):
+    def forward(self, input,z,c):
         c=self.c_embedding(c).reshape(1,1,-1)
-        input=torch.cat((z,c),dim=2)
-        input=self.hidden_fc(input)
+        hidden=torch.cat((z,c),dim=2)
+        hidden=self.hidden_fc(hidden)
         input=self.embedding(input).reshape(-1,1,self.hidden_size)
         input=F.relu(input)
         out,hidden_out=self.lstm(input,hidden)
