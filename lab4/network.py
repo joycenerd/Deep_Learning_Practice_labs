@@ -74,18 +74,19 @@ class DecoderRNN(nn.Module):
         self.lstm = nn.LSTM(hidden_size,hidden_size)
         self.fc = nn.Linear(hidden_size, output_size)
 
-    def forward(self,x,hidden_z,cell_z,c):
-        c=self.c_embedding(c).reshape(1,1,-1)
-        hidden_state=torch.cat((hidden_z,c),dim=2)
-        hidden_state=self.hidden_fc(hidden_state)
-        cell_state=torch.cat((cell_z,c),dim=2)
-        cell_state=self.cell_fc(cell_state)
-
+    def forward(self,x,hidden_state,cell_state):
         x=self.embedding(x).reshape(-1,1,self.hidden_size)
         x=F.relu(x)
         out,(hidden_state,cell_state)=self.lstm(x,(hidden_state,cell_state))
         out=self.fc(out).reshape(-1,self.output_size)
         return out,hidden_state,cell_state
 
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=self.device)
+    def init_hidden_and_cell(self,c,hid_z,cell_z):
+        c=self.c_embedding(c).reshape(1,1,-1)
+        hid_state=torch.cat((hid_z,c),dim=2)
+        hid_state=self.hidden_fc(hid_state)
+
+        cell_state=torch.cat((cell_z,c),dim=2)
+        cell_state=self.cell_fc(cell_state)
+
+        return hid_state,cell_state

@@ -27,18 +27,36 @@ def parse_option():
     parser.add_argument("--z-size",type=int,default=32,help="latent vector size")
     parser.add_argument("--device",type=str,default="cuda:0",help="device use for training")
     parser.add_argument("--lr",type=float,default=0.05,help="learning rate")
-    parser.add_argument("--epochs",type=int,default=200,help="number of epochs to train")
+    parser.add_argument("--epochs",type=int,default=150,help="number of epochs to train")
     parser.add_argument("--start-epoch",type=int,default=1,help="starting epoch")
     parser.add_argument("--final-tf-ratio",type=float,default=0.8,help="teacher forcing ratio")
-    parser.add_argument("--final-kl-w",type=float,default=0.2,help="kl weight")
+    parser.add_argument("--final-kl-w",type=float,default=0.5,help="kl weight")
     parser.add_argument("--kl-anneal-cyc",type=int,default=2,help="kl annealing cycle")
     parser.add_argument("--anneal-method",type=str,default="monotonic",help="KL annealing method: [monotonic,cyclic]")
-    parser.add_argument("--max_len",type=int,default=30,help="maximum word length")
+    parser.add_argument("--max-len",type=int,default=30,help="maximum word length")
+    parser.add_argument("--mode",type=str,default='test',help="train or test")
+    parser.add_argument("--load-path",type=str,default="checkpoints/in28_h256_c4_chid8_tf0.8klw0.5mono_2/epoch_6_bleu_0.6069.pt",help="model path")
     args=parser.parse_args()
     return args
 
 
-def decode(tokenizer,device,token,hid_z,cell_z,c,tf):
+def decode(decoder,tokenizer,device,token,hid_z,cell_z,c,is_tf):
+    """
+    decode character by character
+
+    Args:
+        decoder: (nn.Module) decoder model
+        tokenizer: can perform char2int or int2char
+        device: (str) device to run on (cpu,gpu)
+        token: (list) reference token
+        hid_z: (list) hidden z latent
+        cell_z: (list) cell z latent
+        c: (int) condition
+        tf: (bool) whether to perform teacher ratio or not
+    
+    Returns:
+        output distribution from the decoder
+    """
     in_token=torch.from_numpy(np.asarray(tokenizer.sos))
     in_token=in_token.to(device,dtype=torch.long)
     out_distribution=[]
@@ -46,13 +64,15 @@ def decode(tokenizer,device,token,hid_z,cell_z,c,tf):
         max_len=30
     else:
         max_len=token.shape[0]-1
+    
+    hidden_state,cell_state=decoder.init_hidden_and_cell(c,hid_z,cell_z)
     for i in range(max_len):
-        output,hidden_state,cell_state=decoder(in_token,hid_z,cell_z,c)
+        output,hidden_state,cell_state=decoder(in_token,hidden_state,cell_state)
         out_distribution.append(output)
         out_token=torch.max(torch.softmax(output,dim=1),1)[1]
         if out_token.item()==tokenizer.eos:
             break
-        if tf:
+        if is_tf==True:
             in_token=token[i+1]
         else:
             in_token=out_token
@@ -60,7 +80,16 @@ def decode(tokenizer,device,token,hid_z,cell_z,c,tf):
     return out_distribution
 
 
-def gen_word(z_size,device,tokenizer):
+def gen_word(decoder,z_size,device,tokenizer):
+    """
+    generate words with 4 tenses by Gaussian noise
+
+    Args:
+        decoder: (nn.Module) decoder model
+        z_size: (int) size of the latent code
+        device: (str) device use to process the program
+        tokenizer: (function) int2char or char2int
+    """
     words_list=[]
     for i in range(100):
         hid_z,cell_z=gen_gauss_noise(z_size)
@@ -70,7 +99,7 @@ def gen_word(z_size,device,tokenizer):
         for c in range(4):
             c=torch.from_numpy(np.asarray(c))
             c=c.to(device,dtype=torch.long)
-            outputs=decode(tokenizer,device,None,hid_z,cell_z,c,tf=False)
+            outputs=decode(decoder,tokenizer,device,None,hid_z,cell_z,c,is_tf=False)
             out_token=torch.max(torch.softmax(outputs,dim=1),1)[1]
             out_word=tokenizer.inv_tokenize(out_token)
             words.append(out_word)
@@ -79,6 +108,15 @@ def gen_word(z_size,device,tokenizer):
 
 
 def save_model(task_name,encoder_params,decoder_params,filename):
+    """
+    save the training model
+
+    Args:
+        task_name: (str) experimental setting
+        encoder_params: encoder model state dict
+        decoder_params: decoder model state dict
+        filename: (str) save checkpoint file name
+    """
     if not os.path.isdir(f"checkpoints/{task_name}"):
         os.mkdir(f"checkpoints/{task_name}")
     
@@ -87,6 +125,31 @@ def save_model(task_name,encoder_params,decoder_params,filename):
         'decoder_state_dict':decoder_params
     }
     torch.save(save_obj,f"checkpoints/{task_name}/{filename}.pt")
+
+
+def load_model(load_path,input_size, hidden_size, c_size, c_hidden_size, z_size, device):
+    """
+    load model from checkpoint file
+
+    Args:
+        load_path: (str) save model path
+        input_size: (int) input layer size
+        hidden_size: (int) hidden layer size
+        c_size: (int) condition input size
+        c_hidden_size: (int) condition hidden layer size
+        z_size: (int) latent code size
+        device: (str) device for the process to run on
+    
+    Returns:
+        encoder: (nn.Module) VAE encoder
+        decoder: (nn.Module) VAE decoder
+    """
+    checkpoint=torch.load(load_path)
+    encoder=EncoderRNN(input_size,hidden_size,c_size,c_hidden_size,z_size,device)
+    decoder=DecoderRNN(hidden_size,input_size,c_size,c_hidden_size,z_size,device)
+    encoder.load_state_dict(checkpoint['encoder_state_dict'])
+    decoder.load_state_dict(checkpoint['decoder_state_dict'])
+    return encoder,decoder
 
 
 def train(train_loader,test_loader,
@@ -99,6 +162,8 @@ def train(train_loader,test_loader,
           kl_anneal_cyc,task_name,
           device):
     writer=SummaryWriter(log_dir=f"runs/{task_name}")
+    if not os.path.isdir(f"checkpoints/{task_name}"):
+        os.mkdir(f"checkpoints/{task_name}")
     
     encoder=encoder.to(device)
     decoder=decoder.to(device)
@@ -111,6 +176,7 @@ def train(train_loader,test_loader,
     train_reg_loss=0.0
 
     for epoch in range(start_epoch,epochs+1):
+        # initialize logger
         log_dir=f"./logger/{task_name}"
         if not os.path.isdir(log_dir):
             os.makedirs(log_dir)
@@ -125,6 +191,7 @@ def train(train_loader,test_loader,
         print('-'*len(f"Epoch {epoch}/{epochs}"))
         logger.info(f"Epoch {epoch}/{epochs}")
 
+        # teacher forcing ratio and kl weight
         tf_ratio=tf_sched(epoch,epochs,final_tf_ratio)
         kl_w=klw_sched(anneal_method,epoch,epochs,final_kl_w,kl_anneal_cyc)
 
@@ -145,10 +212,10 @@ def train(train_loader,test_loader,
 
             # whether to use teacher forcing
             rand_val=np.random.rand()
-            tf=True if rand_val<tf_ratio else False
+            is_tf=True if rand_val<tf_ratio else False
 
             # decode
-            out_distribution=decode(tokenizer,device,token,hid_z,cell_z,c,tf)
+            out_distribution=decode(decoder,tokenizer,device,token,hid_z,cell_z,c,is_tf)
 
             # loss
             out_len=out_distribution.shape[0]
@@ -175,14 +242,16 @@ def train(train_loader,test_loader,
                 print(f"Iteration {iters}:")
                 logger.info(f"Iteration {iters}:")
                 if bleu_score>best_bleu_score:
-                    encoder_params=copy.deepcopy(encoder.state_dict())
-                    decoder_params=copy.deepcopy(decoder.state_dict())
-                    save_model(task_name,encoder_params,decoder_params,f"epoch_{epoch}_bleu_{bleu_score:.4f}")
+                    torch.save({
+                        'encoder_state_dict':encoder.state_dict(),
+                        'decoder_state_dict':decoder.state_dict()
+                    },f"checkpoints/{task_name}/epoch_{epoch}_bleu_{bleu_score:.4f}.pt")
                     best_bleu_score=bleu_score
                 if gauss_score>best_gauss_score:
-                    encoder_params=copy.deepcopy(encoder.state_dict())
-                    decoder_params=copy.deepcopy(decoder.state_dict())
-                    save_model(task_name,encoder_params,decoder_params,f"epoch_{epoch}_gauss_{gauss_score:.4f}")
+                    torch.save({
+                        'encoder_state_dict':encoder.state_dict(),
+                        'decoder_state_dict':decoder.state_dict()
+                    },f"checkpoints/{task_name}/epoch_{epoch}_gauss_{gauss_score:.4f}.pt")
                     best_gauss_score=gauss_score
 
                 train_loss/=1000*train_loader.batch_size
@@ -190,7 +259,6 @@ def train(train_loader,test_loader,
                 train_reg_loss/=1000*train_loader.batch_size          
                 
                 test_len=len(test_loader.dataset)
-                eval_loss,eval_reconstruct_loss,eval_reg_loss,bleu_score,tense_conversion_res,words_list,gauss_score=eval(encoder,decoder,tokenizer,test_loader,device,xentropy_criterion,kl_criterion,kl_w,test_len,z_size)
                 
                 print(f"train_loss: {train_loss:.4f} train_reconstruct_loss: {train_reconstruct_loss:.4f} train_reg_loss: {train_reg_loss:.4f}")
                 print(f"eval_loss: {eval_loss:.4f} eval_reconstruct_loss: {eval_reconstruct_loss:.4f} eval_reg_loss: {eval_reg_loss:.4f}")
@@ -203,6 +271,9 @@ def train(train_loader,test_loader,
                     'train_loss':train_loss,
                     'train_xentropy_loss':train_reconstruct_loss,
                     'train_kl_loss':train_reg_loss,
+                    'eval_loss':eval_loss,
+                    'eval_xentropy_loss':eval_reconstruct_loss,
+                    'eval_kl_loss':eval_reg_loss,
                     'tf_ratio':tf_ratio,
                     'kl_w':kl_w,
                     'bleu_score':bleu_score,
@@ -215,8 +286,10 @@ def train(train_loader,test_loader,
                 train_reconstruct_loss=0.0
                 train_reg_loss=0.0
 
-    print(f"best_bleu_score: {best_bleu_score:.4f} best_gauss_score: {best_gauss_score}")
-    logger.info(f"best_bleu_score: {best_bleu_score:.4f} best_gauss_score: {best_gauss_score}")
+        print(f"best_bleu_score: {best_bleu_score:.4f} best_gauss_score: {best_gauss_score}")
+        logger.info(f"best_bleu_score: {best_bleu_score:.4f} best_gauss_score: {best_gauss_score}")
+        logger.removeHandler(file_handler)
+        del logger,file_handler
 
 
 def eval(encoder,decoder,tokenizer,test_loader,device,xentropy_criterion,kl_criterion,kl_w,test_len,z_size):
@@ -246,7 +319,7 @@ def eval(encoder,decoder,tokenizer,test_loader,device,xentropy_criterion,kl_crit
             hid_m,hid_logv,hid_z,cell_m,cell_logv,cell_z=encoder(token,hidden_state,cell_state,c1)
 
             # decode
-            out_distribution=decode(tokenizer,device,target_token,hid_z,cell_z,c2,tf=False)
+            out_distribution=decode(decoder,tokenizer,device,target_token,hid_z,cell_z,c2,is_tf=False)
             out_token=torch.max(torch.softmax(out_distribution,dim=1),1)[1]
             out_word=tokenizer.inv_tokenize(out_token)
 
@@ -270,10 +343,57 @@ def eval(encoder,decoder,tokenizer,test_loader,device,xentropy_criterion,kl_crit
         bleu_score/=test_len
         
         # generate word
-        words_list=gen_word(z_size,device,tokenizer)
+        words_list=gen_word(decoder,z_size,device,tokenizer)
         gauss_score=Gaussian_score(words_list,"./data/train.txt")
 
         return eval_loss,eval_reconstruct_loss,eval_reg_loss,bleu_score,tense_conversion_res,words_list,gauss_score
+
+def test(test_loader,load_path,input_size,hidden_size,c_size,c_hidden_size,z_size,device):
+    encoder,decoder=load_model(load_path,input_size,hidden_size,c_size,c_hidden_size,z_size,device)
+    encoder.to(device)
+    decoder.to(device)
+    encoder.eval()
+    decoder.eval()
+
+    bleu_score=0.0
+    tense_conversion_res=[]
+
+    with torch.no_grad():
+        for idx,(inputs,targets,c1,c2) in enumerate(tqdm(test_loader)):
+            # load data
+            inputs=inputs[0]
+            targets=targets[0]
+            c1=c1[0]
+            c2=c2[0]
+            token=tokenizer.tokenize(inputs).to(device,dtype=torch.long)
+            target_token=tokenizer.tokenize(targets).to(device,dtype=torch.long)
+            c1=torch.LongTensor([c1]).to(device)
+            c2=torch.LongTensor([c2]).to(device)
+            # c1=c1.to(device,dtype=torch.long)
+            # c2=c2.to(device,dtype=torch.long)
+
+            # encode
+            hidden_state,cell_state=encoder.init_hidden_and_cell()
+            hid_m,hid_logv,hid_z,cell_m,cell_logv,cell_z=encoder(token,hidden_state,cell_state,c1)
+
+            # decode
+            out_distribution=decode(decoder,tokenizer,device,target_token,hid_z,cell_z,c2,is_tf=True)
+            out_token=torch.max(torch.softmax(out_distribution,dim=1),1)[1]
+            out_word=tokenizer.inv_tokenize(out_token)
+
+            # bleu
+            bleu_score+=compute_bleu(out_word,targets)
+            tense_conversion_res.append([inputs,targets,out_word])
+        
+        bleu_score/=len(test_loader.dataset)
+        
+        # generate word
+        words_list=gen_word(decoder,z_size,device,tokenizer)
+        gauss_score=Gaussian_score(words_list,"./data/train.txt")
+
+        print_tense_conversion(tense_conversion_res,bleu_score,is_print=True)
+        print("")
+        print_gauss_gen(words_list,gauss_score,is_print=False)
 
 
 if __name__=='__main__':
@@ -295,12 +415,15 @@ if __name__=='__main__':
     kl_anneal_cyc=opt.kl_anneal_cyc
     anneal_method=opt.anneal_method
     max_len=opt.max_len
+    mode=opt.mode
+    load_path=opt.load_path
 
     task_name=f"in{input_size}_h{hidden_size}_c{c_size}_chid{c_hidden_size}_tf{final_tf_ratio}klw{final_kl_w}"
     if anneal_method=="monotonic":
         task_name+="mono"
     elif anneal_method=="cyclic":
         task_name+=f"cyc{kl_anneal_cyc}"
+    task_name+="_2"
 
     # data preprocessing
     train_set=TextDataset('./data','train')
@@ -329,14 +452,21 @@ if __name__=='__main__':
     tokenizer=OneHotEncoder()
     print("Initialize tokenizer...")
 
-    train(train_loader,test_loader,
-          encoder,decoder,
-          encoder_optimizer,decoder_optimizer,
-          xentropy_criterion,kl_criterion,
-          tokenizer,epochs,
-          start_epoch,final_tf_ratio,
-          final_kl_w,anneal_method,
-          kl_anneal_cyc,task_name,
-          device)
+    if mode=="train":
+        train(train_loader,test_loader,
+            encoder,decoder,
+            encoder_optimizer,decoder_optimizer,
+            xentropy_criterion,kl_criterion,
+            tokenizer,epochs,
+            start_epoch,final_tf_ratio,
+            final_kl_w,anneal_method,
+            kl_anneal_cyc,task_name,
+            device)
+    else:
+        test(test_loader,load_path,input_size,hidden_size,c_size,c_hidden_size,z_size,device)
+
+    
+
+    
 
 

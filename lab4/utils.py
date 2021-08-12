@@ -6,10 +6,22 @@ import torch
 
 class OneHotEncoder():
     def __init__(self):
+        """
+        char and int transformation
+        """
         self.sos=0
         self.eos=1
 
     def tokenize(self,word):
+        """
+        encode char to int
+
+        Args: 
+            word: (str) the word we want to encode
+
+        Returns:
+            char2int token list
+        """
         chars=['SOS']+list(word)+['EOS']
         token=[]
         for ch in chars:
@@ -23,6 +35,15 @@ class OneHotEncoder():
         return token
 
     def inv_tokenize(self,token):
+        """
+        decode int back to char
+
+        Args:
+            token: (list) integer list that represent the word
+
+        Returns:
+            word: (str) output word
+        """
         word=''
         for val in token:
             if val==1:
@@ -31,13 +52,23 @@ class OneHotEncoder():
         return word
 
 
-
 def tf_sched(cur_epoch,epochs,final_tf_ratio):
+    """
+    modified teacher forcing ratio according to epoch counts
+
+    Args:
+        cur_epoch: (int) current epoch
+        epochs: (int) total epochs
+        final_tf_ration: (float) smallest teacher forcing ratio
+    
+    Returns:
+        teacher forcing ratio for current epoch
+    """
     thres=int(0.2*epochs)
     if cur_epoch<thres:
         tf_ratio=1
     else:
-        tf_ratio=final_tf_ratio+(cur_epoch-thres)*(1-final_tf_ratio)/(epochs-thres)
+        tf_ratio=final_tf_ratio+(epochs-cur_epoch)*(1-final_tf_ratio)/(epochs-thres)
     if tf_ratio>1:
         tf_ratio=1
     elif tf_ratio<final_tf_ratio:
@@ -46,6 +77,15 @@ def tf_sched(cur_epoch,epochs,final_tf_ratio):
 
 
 def klw_sched(anneal_method,cur_epoch,epochs,final_klw,anneal_cyc):
+    """
+    modified kl weight (regularization term) according to epoch counts
+    Args:
+        anneal_method: (str) monotonic or cyclic
+        cur_epoch: (int) current epoch
+        epochs: (int) total epochs
+        final_klw: (float) highest kl weight
+        anneal_cyc: (int) kl annealing cycle counts
+    """
     if anneal_method=="monotonic":
         thres=0.2*epochs
         if cur_epoch<=thres:
@@ -97,13 +137,14 @@ def Gaussian_score(words,train_path):
     return score/len(words)
 
 
-def print_tense_conversion(tense_conversion_res,bleu_score,logger=None):
-    """for i in range(len(tense_conversion_res)):
-        res=tense_conversion_res[i]
-        print(f"input: {res[0]}")
-        print(f"target: {res[1]}")
-        print(f"prediction: {res[2]}")
-        print("")"""
+def print_tense_conversion(tense_conversion_res,bleu_score,logger=None,is_print=False):
+    if is_print:
+        for i in range(len(tense_conversion_res)):
+            res=tense_conversion_res[i]
+            print(f"input: {res[0]}")
+            print(f"target: {res[1]}")
+            print(f"prediction: {res[2]}")
+            print("")
     print(f"Average BLEU-4 score: {bleu_score:.4f}")
 
     if logger!=None:
@@ -116,9 +157,11 @@ def print_tense_conversion(tense_conversion_res,bleu_score,logger=None):
         logger.info(f"Average BLEU-4 score: {bleu_score:.4f}")
 
 
-def print_gauss_gen(words_list,gauss_score,logger=None):
-    """for i in range(len(words_list)):
-        print(words_list[i])"""
+def print_gauss_gen(words_list,gauss_score,logger=None,is_print=False):
+    if is_print:
+        for i in range(len(words_list)):
+            print(words_list[i])
+            
     print(f"Gaussian score: {gauss_score:.4f}")
 
     if logger!=None:
