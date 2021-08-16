@@ -38,10 +38,10 @@ python train.py \
 ## Results
 
 ### Tense conversion
-<img src="./results/cyclic/cyclic_bleu.png" width="100">
+<img src="./results/cyclic/cyclic_bleu.png" width="200">
 
 ### Word generation
-<img src="./results/cyclic/cyclic_gauss.png" width="150">
+<img src="./results/cyclic/cyclic_gauss.png" width="250">
 
 ### Loss curve
 <img src="./results/cyclic/cyclic_loss.jpg">
