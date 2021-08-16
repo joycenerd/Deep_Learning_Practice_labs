@@ -41,7 +41,7 @@ python train.py \
 <img src="./results/cyclic/cyclic_bleu.png" width="200">
 
 ### Word generation
-<img src="./results/cyclic/cyclic_gauss.png" width="250">
+<img src="./results/cyclic/cyclic_gauss.png" width="300">
 
 ### Loss curve
 <img src="./results/cyclic/cyclic_loss.jpg">
