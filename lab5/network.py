@@ -66,13 +66,15 @@ class Generator(nn.Module):
 
         layer2.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
         layer2.append(nn.BatchNorm2d(int(curr_dim / 2)))
-        layer2.append(nn.ReLU())
+        # layer2.append(nn.ReLU())
+        layer2.append(nn.LeakyReLU(0.1))
 
         curr_dim = int(curr_dim / 2)
 
         layer3.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
         layer3.append(nn.BatchNorm2d(int(curr_dim / 2)))
-        layer3.append(nn.ReLU())
+        # layer3.append(nn.ReLU())
+        layer3.append(nn.Softplus())
 
         if self.imsize == 64:
             layer4 = []
@@ -126,7 +128,8 @@ class Discriminator(nn.Module):
         last = []
 
         layer1.append(SpectralNorm(nn.Conv2d(4, conv_dim, 4, 2, 1)))
-        layer1.append(nn.LeakyReLU(0.1))
+        # layer1.append(nn.LeakyReLU(0.1))
+        layer1.append(nn.ReLU())
 
         curr_dim = conv_dim
 
@@ -135,13 +138,15 @@ class Discriminator(nn.Module):
         curr_dim = curr_dim * 2
 
         layer3.append(SpectralNorm(nn.Conv2d(curr_dim, curr_dim * 2, 4, 2, 1)))
-        layer3.append(nn.LeakyReLU(0.1))
+        # layer3.append(nn.LeakyReLU(0.1))
+        layer3.append(nn.Softplus())
         curr_dim = curr_dim * 2
 
         if self.imsize == 64:
             layer4 = []
             layer4.append(SpectralNorm(nn.Conv2d(curr_dim, curr_dim * 2, 4, 2, 1)))
-            layer4.append(nn.LeakyReLU(0.1))
+            # layer4.append(nn.LeakyReLU(0.1))
+            layer4.append(nn.Tanh())
             self.l4 = nn.Sequential(*layer4)
             curr_dim = curr_dim*2
         self.l1 = nn.Sequential(*layer1)
