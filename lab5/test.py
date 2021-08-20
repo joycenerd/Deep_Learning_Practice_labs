@@ -1,5 +1,5 @@
 from dataset import ICLEVRLoader
-from network import Generator
+from network.sagan import Generator
 from train import sample_z
 from evaluator import evaluation_model
 
@@ -19,7 +19,7 @@ def parse_option():
     parser.add_argument('--g-conv-dim',type=int,default=64,help="generator convolution size")
     parser.add_argument('--num-cond',type=int,default=24,help='number of conditions')
     parser.add_argument('--c_size',type=int,default=100)
-    parser.add_argument('--device',type=str,default="cuda:1",help='cuda or cpu device')
+    parser.add_argument('--device',type=str,default="cuda:0",help='cuda or cpu device')
     args=parser.parse_args()
     return args 
 

@@ -1,5 +1,5 @@
-from network import Generator,Discriminator
 from evaluator import evaluation_model
+from network import sagan,cdcgan
 from dataset import ICLEVRLoader
 
 from torch.utils.tensorboard import SummaryWriter
@@ -24,19 +24,20 @@ def parse_option():
     parser.add_argument('--batch-size',type=int,default=128,help="batch size")
     parser.add_argument('--im-size',type=int,default=64,help="image size")
     parser.add_argument('--z-size',type=int,default=128,help="latent size")
-    parser.add_argument('--g-conv-dim',type=int,default=64,help="generator convolution size")
-    parser.add_argument('--d-conv-dim',type=int,default=64,help="discriminator convolution size")
-    parser.add_argument('--device',type=str,default="cuda:0",help='cuda or cpu device')
-    parser.add_argument('--g-lr',type=float,default=0.0001,help='initial generator learing rate')
-    parser.add_argument('--d-lr',type=float,default=0.0004,help='initial discriminator learning rate')
-    parser.add_argument('--beta1',type=float,default=0.0,help='Adam beta 1')
-    parser.add_argument('--beta2',type=float,default=0.9,help='Adam beta 2')
-    parser.add_argument('--epochs',type=int,default=200,help="total epochs")
+    parser.add_argument('--g-conv-dim',type=int,default=300,help="generator convolution size")
+    parser.add_argument('--d-conv-dim',type=int,default=100,help="discriminator convolution size")
+    parser.add_argument('--device',type=str,default="cuda:1",help='cuda or cpu device')
+    parser.add_argument('--g-lr',type=float,default=0.0002,help='initial generator learing rate')
+    parser.add_argument('--d-lr',type=float,default=0.0002,help='initial discriminator learning rate')
+    parser.add_argument('--beta1',type=float,default=0.5,help='Adam beta 1')
+    parser.add_argument('--beta2',type=float,default=0.999,help='Adam beta 2')
+    parser.add_argument('--epochs',type=int,default=300,help="total epochs")
     parser.add_argument('--eval-iter',type=int,default=50)
     parser.add_argument('--num-cond',type=int,default=24,help='number of conditions')
     parser.add_argument('--adv-loss',type=str,default='wgan-gp',help='adversarial loss method: [bce,hinge,wgan-gp]')
     parser.add_argument('--c_size',type=int,default=100)
     parser.add_argument('--lambda-gp',type=float,default=10)
+    parser.add_argument('--net',type=str,default='cdcgan',help='model')
     args=parser.parse_args()
     return args
 
@@ -56,10 +57,13 @@ def sample_z(bs, n_z, mode='normal'):
         raise NotImplementedError()
 
 
-def grad_penalty(real_images,fake_images,labels,device,D):
+def grad_penalty(real_images,fake_images,labels,device,D,net):
     alpha = torch.rand(real_images.size(0), 1, 1, 1).to(device).expand_as(real_images)
     interpolated = Variable(alpha * real_images.data + (1 - alpha) * fake_images.data, requires_grad=True)
-    out,_,_ = D(interpolated,labels)
+    if net=='sagan':
+        out,_,_ = D(interpolated,labels)
+    else:
+        out=D(interpolated,labels)
 
     grad = torch.autograd.grad(outputs=out,
                                 inputs=interpolated,
@@ -74,7 +78,7 @@ def grad_penalty(real_images,fake_images,labels,device,D):
     return d_loss_gp
 
 
-def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loader,epochs,z_size,eval_iter,device,lambda_gp,task_name):
+def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loader,epochs,z_size,eval_iter,device,lambda_gp,task_name,net):
     eval_model=evaluation_model(device)
     best_acc=0.0
     iters=0
@@ -111,7 +115,10 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
 
             # ========== Train Discriminator =========== #
             d_optimizer.zero_grad()
-            d_out_real,dr1,dr2 = D(inputs, conds)
+            if net=='sagan':
+                d_out_real,dr1,dr2 = D(inputs, conds)
+            else:
+                d_out_real = D(inputs, conds)
             d_x = d_out_real.mean().item()
 
             if adv_loss=='bce':
@@ -123,8 +130,12 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
             
             # apply Gumbel softmax
             z = sample_z(bs, z_size).to(device)
-            fake_images,gf1,gf2 = G(z, conds)
-            d_out_fake,df1,df2 = D(fake_images, conds)
+            if net=='sagan':
+                fake_images,gf1,gf2 = G(z, conds)
+                d_out_fake,df1,df2 = D(fake_images, conds)
+            else:
+                fake_images = G(z, conds)
+                d_out_fake = D(fake_images, conds)
             d_g_z1 = d_out_fake.mean().item()
 
             if adv_loss=='bce':
@@ -141,7 +152,7 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
 
             if adv_loss == 'wgan-gp':
                 # Compute gradient penalty
-                d_loss_gp=grad_penalty(inputs,fake_images,conds,device,D)
+                d_loss_gp=grad_penalty(inputs,fake_images,conds,device,D,net)
 
                 # Backward + Optimize
                 d_loss_gp = lambda_gp * d_loss_gp
@@ -154,10 +165,16 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
             # create random noise
             g_optimizer.zero_grad()
             z = sample_z(bs, z_size).to(device)
-            fake_images,_,_ = G(z, conds)
+            if net=='sagan':
+                fake_images,_,_ = G(z, conds)
+            else:
+                fake_images=G(z,conds)
 
             # compute loss with fake images
-            g_out_fake,_,_= D(fake_images, conds)
+            if net=='sagan':
+                g_out_fake,_,_= D(fake_images, conds)
+            else:
+                g_out_fake=D(fake_images,conds)
             d_g_z2 = g_out_fake.mean().item()
 
             if adv_loss=='bce':
@@ -181,7 +198,6 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
             scalar_dict={
                 'g_loss':g_loss.item(),
                 'd_loss':d_loss.item(),
-                'd_loss_gp':d_loss_gp.item(),
                 'd_x':d_x,
                 'd_g_z1':d_g_z1,
                 'd_g_z2':d_g_z2
@@ -192,7 +208,7 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
             # evaluate
             if iters%eval_iter==0:
                 G.eval()
-                eval_acc,gen_images=eval(G,test_loader,eval_model,z_size,device)
+                eval_acc,gen_images=eval(G,test_loader,eval_model,z_size,device,net)
                 print(f"eval_acc: {eval_acc:.4f}")
                 writer.add_scalar('eval_acc/iters',eval_acc,iters)
                 if eval_acc>best_acc:
@@ -208,7 +224,7 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
         train_g_loss/=len(train_loader)
 
         G.eval()
-        eval_acc,gen_images=eval(G,test_loader,eval_model,z_size,device)
+        eval_acc,gen_images=eval(G,test_loader,eval_model,z_size,device,net)
         print(f"[{epoch}/{epochs}][AvgG: {train_g_loss:.4f}][AvgD: {train_d_loss:.4f}][Acc: {eval_acc:.4f}]")
         scalar_dict={
             'train_loss_g':train_g_loss,
@@ -225,7 +241,7 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
         save_image(gen_images,Path(gen_img_dir).joinpath(f"ep{epoch}_last_{eval_acc:.4f}.jpg"),nrow=8)
 
         
-def eval(G,test_loader,eval_model,z_size,device):
+def eval(G,test_loader,eval_model,z_size,device,net):
     G.eval()
     avg_acc=0.0
     gen_images=None
@@ -234,7 +250,12 @@ def eval(G,test_loader,eval_model,z_size,device):
         for idx,conds in enumerate(test_loader):
             conds=conds.to(device)
             z=sample_z(conds.shape[0],z_size).to(device)
-            fake_images,_,_=G(z,conds)
+
+            if net=='sagan':
+                fake_images,_,_=G(z,conds)
+            else:
+                fake_images=G(z,conds)
+
             if gen_images is None:
                 gen_images=fake_images
             else:
@@ -247,11 +268,11 @@ def eval(G,test_loader,eval_model,z_size,device):
 
 if __name__=="__main__":
     args=parse_option()
-    task_name=f"attn_glr{args.g_lr}_dlr{args.d_lr}_advloss-{args.adv_loss}-act_ep{args.epochs}"
+    task_name=f"{args.net}_glr{args.g_lr}_dlr{args.d_lr}_advloss-{args.adv_loss}_ep{args.epochs}_b1-{args.beta1}_b2-{args.beta2}_gconv{args.g_conv_dim}_dconv{args.d_conv_dim}"
 
     # dataset
     data_transform=transforms.Compose([
-        transforms.Resize((64,64)),
+        transforms.Resize((args.im_size,args.im_size)),
         transforms.ToTensor(),
         transforms.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))
     ])
@@ -261,8 +282,14 @@ if __name__=="__main__":
     test_loader=DataLoader(test_set,batch_size=args.batch_size,shuffle=False,num_workers=3)
 
     # model
-    G=Generator(args.batch_size,args.im_size,args.z_size,args.g_conv_dim,args.num_cond,args.c_size)
-    D=Discriminator(args.batch_size,args.im_size,args.d_conv_dim,args.num_cond)
+    if args.net=='sagan':
+        G=sagan.Generator(args.batch_size,args.im_size,args.z_size,args.g_conv_dim,args.num_cond,args.c_size)
+        D=sagan.Discriminator(args.batch_size,args.im_size,args.d_conv_dim,args.num_cond)
+    elif args.net=='cdcgan':
+        G=cdcgan.Generator(args.z_size,args.c_size,args.num_cond,args.g_conv_dim)
+        D=cdcgan.Discriminator(args.im_size,args.d_conv_dim,args.num_cond)
+        G.apply(cdcgan.weights_init)
+        D.apply(cdcgan.weights_init)
     G=G.to(args.device)
     D=D.to(args.device)
 
@@ -286,6 +313,7 @@ if __name__=="__main__":
           eval_iter=args.eval_iter,
           device=args.device,
           lambda_gp=args.lambda_gp,
-          task_name=task_name)
+          task_name=task_name,
+          net=args.net)
 
 
