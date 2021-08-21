@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 import torch.nn as nn
 import torch
+from torch.nn.modules.normalization import LayerNorm
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -35,7 +36,7 @@ class Generator(nn.Module):
                     n_ch[i-1], n_ch[i], kernel_size=4, stride=2, padding=1,
                     bias=False),
                 nn.BatchNorm2d(n_ch[i]),
-                nn.ReLU(inplace=True)
+                # nn.ReLU(inplace=True)
             ]
         model += [
             nn.ConvTranspose2d(
@@ -69,6 +70,8 @@ class Discriminator(nn.Module):
             nn.BatchNorm2d(n_ch[0]),
             nn.LeakyReLU(0.2, inplace=True)
         ]
+
+        act=[nn.ReLU(),nn.LeakyReLU(0.2),nn.Softplus(),nn.Tanh()]
         for i in range(1, len(n_ch)):
             model += [
                 nn.Conv2d(

@@ -93,8 +93,8 @@ class Generator(nn.Module):
         last.append(nn.Tanh())
         self.last = nn.Sequential(*last)
 
-        self.attn1 = Self_Attn( 128, 'relu')
-        self.attn2 = Self_Attn( 64,  'relu')
+        self.attn1 = Self_Attn( conv_dim*2, 'relu')
+        self.attn2 = Self_Attn( conv_dim,  'relu')
 
     def forward(self, z,c):
         z = z.view(z.size(0), z.size(1), 1, 1)
@@ -156,8 +156,8 @@ class Discriminator(nn.Module):
         last.append(nn.Conv2d(curr_dim, 1, 4))
         self.last = nn.Sequential(*last)
 
-        self.attn1 = Self_Attn(256, 'relu')
-        self.attn2 = Self_Attn(512, 'relu')
+        self.attn1 = Self_Attn(conv_dim*4, 'relu')
+        self.attn2 = Self_Attn(conv_dim*8, 'relu')
         self.sigmoid=nn.Sigmoid()
 
     def forward(self, x,c):

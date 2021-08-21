@@ -1,5 +1,5 @@
 from evaluator import evaluation_model
-from network import sagan,cdcgan
+from network import sagan,cdcgan,wgan
 from dataset import ICLEVRLoader
 
 from torch.utils.tensorboard import SummaryWriter
@@ -27,17 +27,17 @@ def parse_option():
     parser.add_argument('--g-conv-dim',type=int,default=300,help="generator convolution size")
     parser.add_argument('--d-conv-dim',type=int,default=100,help="discriminator convolution size")
     parser.add_argument('--device',type=str,default="cuda:1",help='cuda or cpu device')
-    parser.add_argument('--g-lr',type=float,default=0.0002,help='initial generator learing rate')
-    parser.add_argument('--d-lr',type=float,default=0.0002,help='initial discriminator learning rate')
-    parser.add_argument('--beta1',type=float,default=0.5,help='Adam beta 1')
-    parser.add_argument('--beta2',type=float,default=0.999,help='Adam beta 2')
+    parser.add_argument('--g-lr',type=float,default=0.0001,help='initial generator learing rate')
+    parser.add_argument('--d-lr',type=float,default=0.0004,help='initial discriminator learning rate')
+    parser.add_argument('--beta1',type=float,default=0.0,help='Adam beta 1')
+    parser.add_argument('--beta2',type=float,default=0.9,help='Adam beta 2')
     parser.add_argument('--epochs',type=int,default=300,help="total epochs")
     parser.add_argument('--eval-iter',type=int,default=50)
     parser.add_argument('--num-cond',type=int,default=24,help='number of conditions')
     parser.add_argument('--adv-loss',type=str,default='wgan-gp',help='adversarial loss method: [bce,hinge,wgan-gp]')
     parser.add_argument('--c_size',type=int,default=100)
     parser.add_argument('--lambda-gp',type=float,default=10)
-    parser.add_argument('--net',type=str,default='cdcgan',help='model')
+    parser.add_argument('--net',type=str,default='sagan',help='model')
     args=parser.parse_args()
     return args
 
@@ -130,6 +130,7 @@ def train(G,D,g_optimizer,d_optimizer,criterion,adv_loss,train_loader,test_loade
             
             # apply Gumbel softmax
             z = sample_z(bs, z_size).to(device)
+            pass
             if net=='sagan':
                 fake_images,gf1,gf2 = G(z, conds)
                 d_out_fake,df1,df2 = D(fake_images, conds)
@@ -269,6 +270,7 @@ def eval(G,test_loader,eval_model,z_size,device,net):
 if __name__=="__main__":
     args=parse_option()
     task_name=f"{args.net}_glr{args.g_lr}_dlr{args.d_lr}_advloss-{args.adv_loss}_ep{args.epochs}_b1-{args.beta1}_b2-{args.beta2}_gconv{args.g_conv_dim}_dconv{args.d_conv_dim}"
+    # task_name='test'
 
     # dataset
     data_transform=transforms.Compose([
@@ -290,6 +292,9 @@ if __name__=="__main__":
         D=cdcgan.Discriminator(args.im_size,args.d_conv_dim,args.num_cond)
         G.apply(cdcgan.weights_init)
         D.apply(cdcgan.weights_init)
+    elif args.net=='wgan':
+        G=wgan.Generator(args.num_cond,args.c_size,args.z_size)
+        D=wgan.Discriminator(args.num_cond,args.im_size)
     G=G.to(args.device)
     D=D.to(args.device)
 
