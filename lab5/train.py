@@ -35,7 +35,7 @@ def parse_option():
     parser.add_argument('--eval-iter',type=int,default=50)
     parser.add_argument('--num-cond',type=int,default=24,help='number of conditions')
     parser.add_argument('--adv-loss',type=str,default='wgan-gp',help='adversarial loss method: [bce,hinge,wgan-gp]')
-    parser.add_argument('--c_size',type=int,default=100)
+    parser.add_argument('--c-size',type=int,default=100)
     parser.add_argument('--lambda-gp',type=float,default=10)
     parser.add_argument('--net',type=str,default='sagan',help='model')
     args=parser.parse_args()
