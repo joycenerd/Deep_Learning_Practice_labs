@@ -39,6 +39,9 @@ python train.py \
 
 ## Results
 
+* Model: Self-attention GAN
+* Testing accuracy: 77.22%
+
 <img src="./results/sagan_best.jpg">
 
 
