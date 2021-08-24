@@ -6,7 +6,7 @@ from PIL import Image
 import os
 import numpy as np
 
-def get_iCLEVR_data(root_folder,mode):
+def get_iCLEVR_data(root_folder,mode,filename):
     if mode == 'train':
         data = json.load(open(os.path.join(root_folder,'train.json')))
         obj = json.load(open(os.path.join(root_folder,'objects.json')))
@@ -20,7 +20,7 @@ def get_iCLEVR_data(root_folder,mode):
             label[i] = tmp
         return np.squeeze(img), np.squeeze(label)
     else:
-        data = json.load(open(os.path.join(root_folder,'test.json')))
+        data = json.load(open(os.path.join(root_folder,filename)))
         obj = json.load(open(os.path.join(root_folder,'objects.json')))
         label = data
         for i in range(len(label)):
@@ -33,10 +33,10 @@ def get_iCLEVR_data(root_folder,mode):
 
 
 class ICLEVRLoader(data.Dataset):
-    def __init__(self, root_folder, trans=None, cond=False, mode='train'):
+    def __init__(self, root_folder, trans=None, cond=False, mode='train',filename='test.json'):
         self.root_folder = root_folder
         self.mode = mode
-        self.img_list, self.label_list = get_iCLEVR_data(root_folder,mode)
+        self.img_list, self.label_list = get_iCLEVR_data(root_folder,mode,filename)
         if self.mode == 'train':
             print("> Found %d images..." % (len(self.img_list)))
         

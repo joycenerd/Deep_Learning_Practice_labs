@@ -278,9 +278,9 @@ if __name__=="__main__":
         transforms.ToTensor(),
         transforms.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))
     ])
-    train_set=ICLEVRLoader('./data',trans=data_transform,cond=True,mode='train')
+    train_set=ICLEVRLoader('./data',trans=data_transform,cond=True,mode='train','train.json')
     train_loader=DataLoader(train_set,batch_size=args.batch_size,shuffle=True,num_workers=3)
-    test_set=ICLEVRLoader('./data',cond=True,mode='test')
+    test_set=ICLEVRLoader('./data',cond=True,mode='test','test.json')
     test_loader=DataLoader(test_set,batch_size=args.batch_size,shuffle=False,num_workers=3)
 
     # model
