@@ -150,7 +150,6 @@ def train(args, env, agent, writer):
     action_space = env.action_space
     total_steps, epsilon = 0, 1.
     ewma_reward = 0
-    epsilon = max(epsilon * args.eps_decay, args.eps_min)
     
     for episode in range(args.episode):
         total_reward = 0
@@ -162,6 +161,7 @@ def train(args, env, agent, writer):
                 action = action_space.sample()
             else:
                 action = agent.select_action(state, epsilon, action_space)
+                epsilon = max(epsilon * args.eps_decay, args.eps_min)
             
             # execute action
             next_state, reward, done, _ = env.step(action)
@@ -197,7 +197,7 @@ def test(args, env, agent, writer):
         state = env.reset()
         ## TODO ##
         for t in itertools.count(start=1):
-            env.render()
+            # env.render()
 
             # select action
             action = agent.select_action(state, epsilon, action_space)
