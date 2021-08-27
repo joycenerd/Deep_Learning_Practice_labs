@@ -54,7 +54,7 @@ class ReplayMemory:
                 for x in zip(*transitions))
 
 
-class DQN:
+class DDQN:
     def __init__(self, args):
         self._behavior_net = Net().to(args.device)
         self._target_net = Net().to(args.device)
@@ -106,8 +106,9 @@ class DQN:
         q_value = self._behavior_net(state).gather(dim=1,index=action.long())
 
         with torch.no_grad():
-            q_next = self._target_net(next_state).max(dim=1)[0].view(-1,1)
-            q_target = reward + gamma*q_next*(1-done) # 1-done: end of trajectory
+            action=self._behavior_net(next_state).max(dim=1)[1].view(-1,1)
+            q_next = self._target_net(next_state).gather(dim=1,index=action.long())
+            q_target = reward + gamma*q_next*(1-done)
 
         criterion = nn.MSELoss()
         loss = criterion(q_value, q_target)
@@ -222,8 +223,8 @@ def main():
     ## arguments ##
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-d', '--device', default='cuda:0')
-    parser.add_argument('-m', '--model', default='dqn.pth')
-    parser.add_argument('--logdir', default='log/dqn')
+    parser.add_argument('-m', '--model', default='ddqn.pth')
+    parser.add_argument('--logdir', default='log/ddqn')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
     parser.add_argument('--episode', default=2000, type=int)
@@ -236,7 +237,7 @@ def main():
     parser.add_argument('--freq', default=4, type=int)
     parser.add_argument('--target_freq', default=1000, type=int)
     # test
-    parser.add_argument('--test_only', action='store_true')
+    parser.add_argument('--test_only', action='store_true',default=True)
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--seed', default=20200519, type=int)
     parser.add_argument('--test_epsilon', default=.001, type=float)
@@ -244,7 +245,7 @@ def main():
 
     ## main ##
     env = gym.make('LunarLander-v2')
-    agent = DQN(args)
+    agent = DDQN(args)
     writer = SummaryWriter(args.logdir)
     if not args.test_only:
         train(args,env,agent,writer)
