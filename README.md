@@ -7,7 +7,7 @@ Understand and implement simple neural networks with forwarding pass and backwar
 * Linear data accuracy: 99%
 * XOR data accuracy: 100%
 
-:page_facing_up [Report](./lab1/REPORT.pdf) :computer: [Code](./lab1)
+:page_facing_up: [Report](./lab1/REPORT.pdf) :computer: [Code](./lab1)
 
 
 ## EEG Classification
@@ -17,4 +17,4 @@ Implementing two EEG classification model which are EEGNet and DeepConvNet. Also
 * EEGNet accuracy: 87.87%
 * DeepConvNet accuracy: 76.48%
 
-:page_facing_up [Report](./lab2/REPORT.pdf) :computer: [Code](./lab2)
+:page_facing_up: [Report](./lab2/REPORT.pdf) :computer: [Code](./lab2)
