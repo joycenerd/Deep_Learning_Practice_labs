@@ -18,5 +18,3 @@ Implementing two EEG classification model which are EEGNet and DeepConvNet. Also
 * DeepConvNet accuracy: 76.48%
 
 :page_facing_up [Report](./lab2/REPORT.pdf) :computer: [Code](./lab2)
-
-
