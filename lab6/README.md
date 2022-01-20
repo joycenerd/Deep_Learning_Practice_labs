@@ -1,6 +1,6 @@
 # Deep Q-Network and Deep Deterministic Policy Gradient
 
-Implement DQN and DDQN to solce LunarLander-v2. Implement DDPG to solve LunarLanderContinuous-v2.
+Implement DQN and DDQN to solve LunarLander-v2. Implement DDPG to solve LunarLanderContinuous-v2.
 
 ## Data
 
